@@ -1,0 +1,179 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ru-ru" lang="ru-ru" dir="ltr" >
+<head>
+
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.2/underscore-min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/json2/20140204/json2.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/backbone.js/1.1.2/backbone-min.js"></script>
+
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <meta name="title" content="events_collection" />
+    <style>
+        #main_table {
+            width: 100%;
+            min-height: 200px;
+            display: table;
+        }
+        #event_list, #details {
+            width: 40%;
+            display: table-cell;
+            border: 1px solid #000;
+        }
+        #event_list div.active {
+            background: #ddd;
+        }
+        #event_list div {
+            cursor: pointer;
+        }
+    </style>
+    <script>
+        $(function(){
+            var Event = Backbone.Model.extend({
+                url: function() {
+                    return '{% url "event-detail" 999 %}'.replace(/999\//g, this.get('id'));
+                }
+            });
+
+            var EventsCollection = Backbone.Collection.extend({
+                 initialize: function() {
+                    _.bindAll(this, 'nextPage', 'previousPage');
+                    this.baseUrl = '{% url "event-list" %}';
+                    this.per_page = 2;
+                    this.page = 1;
+                },
+                model: Event,
+                url: function() {
+                    return this.baseUrl + '?' + $.param({per_page: this.per_page, page: this.page});
+                },
+
+                parse: function(response) {
+                    this.has_prev = response.pagination.has_prev;
+                    this.has_next = response.pagination.has_next;
+                    return response.data;
+                },
+                nextPage: function() {
+                    if (!this.has_next) {
+                        return false;
+                    }
+                    this.page += 1;
+                    return this.fetch();
+                },
+                previousPage: function() {
+                    if (!this.has_prev) {
+                        return false;
+                    }
+                    this.page -= 1;
+                    return this.fetch();
+                },
+
+            });
+
+            var EventView = Backbone.View.extend({
+                template: _.template($("#template-details").html()),
+                render: function () {
+                    $(this.el).html(this.template(this.model.attributes))
+                    $('#details').html(this.el);
+                    return this;
+                }
+            })
+
+            var MainView = Backbone.View.extend({
+                tagName: 'div',
+                id: 'main_view',
+                template: _.template($("#template-contact").html()),
+
+                initialize: function() {
+                    _.bindAll(this, 'onClickEventTitle');
+
+                    this.events_collection = new EventsCollection();
+                    this.events_collection.bind('add', this.render, this);
+                    this.events_collection.fetch();
+                    $('#main').html(this.render().el);
+
+                    $('#main').on('click', '.prev', this.events_collection.previousPage);
+                    $('#main').on('click', '.next', this.events_collection.nextPage);
+
+                    var main_view = this;
+                    $('#main').on('click', '.event_title', this.onClickEventTitle);
+                },
+
+                onClickEventTitle: function(e) {
+                    $(e.target).siblings().removeClass('active');
+                    $(e.target).addClass('active');
+                    var event = this.events_collection.get($(e.target).data('id'));
+
+                    event.on('change', function(){
+                        new EventView({model: event}).render();
+                    })
+                    event.fetch();
+                    if ('instances' in event.attributes) {
+                        event.trigger('change');
+                    }
+                },
+
+                render: function () {
+                    var event_list = '';
+                    this.events_collection.each(function(event) {
+                        var obj = event.toJSON();
+                        event_list += "<div class='event_title' data-id='"+obj.id+"'> "+obj.title+" </div>"
+                    });
+                    $(this.el).html(this.template({collection: this.events_collection, event_list: event_list}))
+
+                    return this;
+                }
+            });
+
+            var main_view = new MainView();
+        })
+    </script>
+
+    <script type="text/html" id="template-details">
+        <div><%= title %></div>
+        <div><%= description %></div>
+        <div>
+            <table border="1">
+                <tr>
+                    <% for(var i=0; i<instances.length; i++) { %>
+                        <td><% print(instances[i].start) %></td>
+                        <td><% print(instances[i].place.name) %></td>
+                        <td><% print(instances[i].place.city.name) %></td>
+                    <% } %>
+                </tr>
+            </table>
+        </div>
+    </script>
+
+    <script type="text/html" id="template-contact">
+        <div id="main_table">
+            <div id="event_list">
+                <%= event_list %>
+            </div>
+            <div id="details">
+            </div>
+        </div>
+        <div id="paginator">
+            <% if((collection.has_next) || (collection.has_prev)) { %>
+                <% if(collection.has_prev) { %>
+                <a href="#" class="prev">previous</a>
+                <% } else { %>
+                <span>previous</span>
+                <% } %>
+
+                <% if(collection.has_next) { %>
+                <a href="#" class="next">next</a>
+                <% } else { %>
+                <span>next</span>
+                <% } %>
+            <% } %>
+        </div>
+    </script>
+
+</head>
+<body>
+    <div id="main">
+
+    </div>
+</body>
+</html>
+

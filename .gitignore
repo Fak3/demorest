@@ -1,0 +1,13 @@
+.*~
+*.kate-swp
+*.pyc
+*.orig
+*.rej
+.~lock.*
+parse_local.py
+static_collected/
+cover/
+.kateproject
+.kateproject.d
+.coverage
+*.ipynb
